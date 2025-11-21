@@ -1,46 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/hoang-gia-logo.png";
 
 const Login = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn, user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập đầy đủ email và mật khẩu",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate login - In production, this would call an API
-    setTimeout(() => {
-      if (username && password) {
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("userRole", "owner"); // Default to owner for now
-        if (rememberMe) {
-          localStorage.setItem("rememberMe", "true");
-        }
+    try {
+      const { error } = await signIn(email, password);
+
+      if (error) {
+        toast({
+          title: "Đăng nhập thất bại",
+          description: error.message || "Vui lòng kiểm tra lại email và mật khẩu",
+          variant: "destructive",
+        });
+      } else {
         toast({
           title: "Đăng nhập thành công",
           description: "Chào mừng bạn đến với hệ thống quản lý Hoàng Gia",
         });
         navigate("/dashboard");
-      } else {
-        toast({
-          title: "Đăng nhập thất bại",
-          description: "Vui lòng kiểm tra lại tên đăng nhập và mật khẩu",
-          variant: "destructive",
-        });
       }
+    } catch (error) {
+      toast({
+        title: "Đăng nhập thất bại",
+        description: "Đã có lỗi xảy ra, vui lòng thử lại",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -57,13 +76,13 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username">Tên đăng nhập</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Nhập tên đăng nhập"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Nhập email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="transition-all duration-300 focus:ring-2 focus:ring-primary"
               />
@@ -80,28 +99,6 @@ const Login = () => {
                 required
                 className="transition-all duration-300 focus:ring-2 focus:ring-primary"
               />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                />
-                <Label
-                  htmlFor="remember"
-                  className="text-sm cursor-pointer text-muted-foreground"
-                >
-                  Ghi nhớ đăng nhập
-                </Label>
-              </div>
-              <a
-                href="#"
-                className="text-sm text-primary hover:text-accent transition-colors"
-              >
-                Quên mật khẩu?
-              </a>
             </div>
 
             <Button
