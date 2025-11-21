@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DollarSign,
@@ -10,18 +8,13 @@ import {
   TrendingUp,
 } from "lucide-react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const [userName] = useState("Quản lý"); // Will be dynamic later
-
-  useEffect(() => {
-    // Check authentication
-    const isAuthenticated = localStorage.getItem("isAuthenticated");
-    if (!isAuthenticated) {
-      navigate("/login");
-    }
-  }, [navigate]);
+  const { user } = useAuth();
+  const userName = user?.email?.split('@')[0] || "Người dùng";
+  
+  // Authentication is now handled by ProtectedRoute in App.tsx
 
   const stats = [
     {

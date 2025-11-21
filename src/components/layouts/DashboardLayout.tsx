@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
   Package,
@@ -14,6 +15,7 @@ import {
   X,
   Truck,
   ClipboardList,
+  Shield,
 } from "lucide-react";
 import logo from "@/assets/hoang-gia-logo.png";
 
@@ -24,24 +26,42 @@ interface DashboardLayoutProps {
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
+  const { signOut, user, userRole, hasRole } = useAuth();
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("userRole");
+  const handleLogout = async () => {
+    await signOut();
     navigate("/login");
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: "Trang chủ", path: "/dashboard" },
-    { icon: Package, label: "Quản lý kho", path: "/inventory" },
-    { icon: Truck, label: "Nhà cung cấp", path: "/suppliers" },
-    { icon: UserCog, label: "Nhân viên", path: "/employees" },
-    { icon: Users, label: "Khách hàng", path: "/customers" },
-    { icon: ShoppingCart, label: "Bán hàng", path: "/sales" },
-    { icon: ClipboardList, label: "Đơn hàng", path: "/orders" },
-    { icon: BarChart3, label: "Báo cáo", path: "/reports" },
-    { icon: Settings, label: "Cài đặt", path: "/settings" },
+    { icon: LayoutDashboard, label: "Trang chủ", path: "/dashboard", roles: ['owner', 'manager', 'staff'] },
+    { icon: Shield, label: "Quản lý người dùng", path: "/users", roles: ['owner'] },
+    { icon: Package, label: "Quản lý kho", path: "/inventory", roles: ['owner', 'manager', 'staff'] },
+    { icon: Truck, label: "Nhà cung cấp", path: "/suppliers", roles: ['owner', 'manager'] },
+    { icon: UserCog, label: "Nhân viên", path: "/employees", roles: ['owner', 'manager'] },
+    { icon: Users, label: "Khách hàng", path: "/customers", roles: ['owner', 'manager', 'staff'] },
+    { icon: ShoppingCart, label: "Bán hàng", path: "/sales", roles: ['owner', 'manager', 'staff'] },
+    { icon: ClipboardList, label: "Đơn hàng", path: "/orders", roles: ['owner', 'manager', 'staff'] },
+    { icon: BarChart3, label: "Báo cáo", path: "/reports", roles: ['owner', 'manager'] },
+    { icon: Settings, label: "Cài đặt", path: "/settings", roles: ['owner', 'manager', 'staff'] },
   ];
+
+  const visibleMenuItems = menuItems.filter(item => 
+    !item.roles || hasRole(item.roles as any)
+  );
+
+  const getRoleLabel = () => {
+    switch (userRole) {
+      case 'owner':
+        return 'Chủ sở hữu';
+      case 'manager':
+        return 'Quản lý';
+      case 'staff':
+        return 'Nhân viên';
+      default:
+        return 'Người dùng';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,7 +85,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-6 px-4">
             <ul className="space-y-2">
-              {menuItems.map((item, index) => (
+              {visibleMenuItems.map((item, index) => (
                 <li key={index}>
                   <Button
                     variant="ghost"
@@ -118,11 +138,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-foreground">Admin User</p>
-                <p className="text-xs text-muted-foreground">Chủ cửa hàng</p>
+                <p className="text-sm font-medium text-foreground">
+                  {user?.email?.split('@')[0] || 'User'}
+                </p>
+                <p className="text-xs text-muted-foreground">{getRoleLabel()}</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-semibold">
-                A
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
               </div>
             </div>
           </div>
