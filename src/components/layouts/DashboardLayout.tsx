@@ -36,7 +36,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const menuItems = [
     { icon: LayoutDashboard, label: "Trang chủ", path: "/dashboard", roles: ['owner', 'manager', 'staff'] },
     { icon: Shield, label: "Quản lý người dùng", path: "/users", roles: ['owner'] },
-    { icon: Package, label: "Quản lý kho", path: "/inventory", roles: ['owner', 'manager', 'staff'] },
+    { icon: Package, label: "Quản lý kho", path: "/products", roles: ['owner', 'manager', 'staff'] },
     { icon: Truck, label: "Nhà cung cấp", path: "/suppliers", roles: ['owner', 'manager'] },
     { icon: UserCog, label: "Nhân viên", path: "/employees", roles: ['owner', 'manager'] },
     { icon: Users, label: "Khách hàng", path: "/customers", roles: ['owner', 'manager', 'staff'] },
