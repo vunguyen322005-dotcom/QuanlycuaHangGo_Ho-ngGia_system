@@ -17,6 +17,7 @@ import {
   ClipboardList,
   Shield,
   Package2,
+  Clock,
 } from "lucide-react";
 import logo from "@/assets/hoang-gia-logo.png";
 
@@ -45,6 +46,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { icon: ShoppingCart, label: "Bán hàng", path: "/sales", roles: ['owner', 'manager', 'staff'] },
     { icon: ClipboardList, label: "Đơn hàng", path: "/orders", roles: ['owner', 'manager', 'staff'] },
     { icon: BarChart3, label: "Báo cáo", path: "/reports", roles: ['owner', 'manager'] },
+    { icon: Clock, label: "Chấm công", path: "/attendance", roles: ['owner', 'manager'] },
     { icon: Settings, label: "Cài đặt", path: "/settings", roles: ['owner', 'manager', 'staff'] },
   ];
 
