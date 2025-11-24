@@ -13,6 +13,7 @@ import Suppliers from "./pages/Suppliers";
 import Employees from "./pages/Employees";
 import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
+import InventoryTransactions from "./pages/InventoryTransactions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -80,6 +81,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Orders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory"
+              element={
+                <ProtectedRoute>
+                  <InventoryTransactions />
                 </ProtectedRoute>
               }
             />
