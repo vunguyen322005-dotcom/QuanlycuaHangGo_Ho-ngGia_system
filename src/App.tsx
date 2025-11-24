@@ -14,6 +14,7 @@ import Employees from "./pages/Employees";
 import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
 import InventoryTransactions from "./pages/InventoryTransactions";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -89,6 +90,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <InventoryTransactions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute allowedRoles={['owner', 'manager']}>
+                  <Reports />
                 </ProtectedRoute>
               }
             />
