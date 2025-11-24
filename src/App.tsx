@@ -15,6 +15,7 @@ import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
 import InventoryTransactions from "./pages/InventoryTransactions";
 import Reports from "./pages/Reports";
+import Attendance from "./pages/Attendance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -98,6 +99,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['owner', 'manager']}>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['owner', 'manager']}>
+                  <Attendance />
                 </ProtectedRoute>
               }
             />
