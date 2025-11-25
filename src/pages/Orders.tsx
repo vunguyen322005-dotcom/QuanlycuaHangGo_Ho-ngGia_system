@@ -4,163 +4,101 @@ import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Printer, Eye, Trash2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { Search, Trash2, Plus, Minus, Printer, ShoppingCart } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
-type Order = {
-  id: string;
-  code: string;
-  status: string;
-  payment_method: string;
-  total_amount: number;
-  discount: number;
-  final_amount: number;
-  notes: string | null;
-  created_at: string;
-  customer_id: string | null;
-  employee_id: string | null;
-};
-
-type OrderItem = {
-  id: string;
-  product_id: string;
-  product_name: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-};
-
-type Product = {
+interface Product {
   id: string;
   code: string;
   name: string;
   selling_price: number;
   quantity: number;
-};
+  category: string;
+}
 
-type Customer = {
+interface Customer {
   id: string;
   code: string;
   full_name: string;
   phone: string;
-};
+}
 
-type OrderFormData = {
-  code: string;
-  customer_id: string;
-  payment_method: string;
-  discount: number;
-  notes: string;
-  items: Array<{
-    product_id: string;
-    product_name: string;
-    quantity: number;
-    unit_price: number;
-  }>;
-};
+interface CartItem {
+  product_id: string;
+  product_name: string;
+  unit_price: number;
+  quantity: number;
+  total_price: number;
+}
 
 export default function Orders() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { hasRole, user } = useAuth();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [viewingOrder, setViewingOrder] = useState<{ order: Order; items: OrderItem[] } | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-  
-  const [formData, setFormData] = useState<OrderFormData>({
-    code: '',
-    customer_id: '',
-    payment_method: 'cash',
-    discount: 0,
-    notes: '',
-    items: [],
-  });
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [productQuantity, setProductQuantity] = useState(1);
-
-  const canManage = hasRole(['owner', 'manager']);
-
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['orders', selectedStatus],
-    queryFn: async () => {
-      let query = supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (selectedStatus !== 'all') {
-        query = query.eq('status', selectedStatus);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Order[];
-    },
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  const [discount, setDiscount] = useState<number>(0);
+  const [currentOrder, setCurrentOrder] = useState<any>(null);
 
   const { data: products } = useQuery({
-    queryKey: ['products-for-orders'],
+    queryKey: ['products', searchTerm],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, code, name, selling_price, quantity')
-        .gt('quantity', 0);
+      let query = supabase.from('products').select('*').gt('quantity', 0);
+      
+      if (searchTerm) {
+        query = query.or(`code.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+      }
+      
+      const { data, error } = await query.order('name').limit(10);
       if (error) throw error;
       return data as Product[];
     },
   });
 
   const { data: customers } = useQuery({
-    queryKey: ['customers-for-orders'],
+    queryKey: ['customers'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, full_name, phone');
+        .select('*')
+        .order('full_name');
       if (error) throw error;
       return data as Customer[];
     },
   });
 
   const createOrderMutation = useMutation({
-    mutationFn: async (data: OrderFormData) => {
-      const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-      const finalAmount = totalAmount - data.discount;
-
+    mutationFn: async (orderData: any) => {
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .insert([{
-          code: data.code,
-          customer_id: data.customer_id || null,
-          employee_id: user?.id || null,
-          payment_method: data.payment_method,
-          status: 'pending',
-          total_amount: totalAmount,
-          discount: data.discount,
-          final_amount: finalAmount,
-          notes: data.notes,
-        }])
+        .insert({
+          code: `DH${Date.now()}`,
+          customer_id: orderData.customer_id || null,
+          total_amount: orderData.total_amount,
+          discount: orderData.discount,
+          final_amount: orderData.final_amount,
+          payment_method: orderData.payment_method,
+          status: 'completed',
+        })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      const orderItems = data.items.map(item => ({
+      const orderItems = orderData.items.map((item: CartItem) => ({
         order_id: order.id,
         product_id: item.product_id,
         product_name: item.product_name,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.quantity * item.unit_price,
+        total_price: item.total_price,
       }));
 
       const { error: itemsError } = await supabase
@@ -169,26 +107,13 @@ export default function Orders() {
 
       if (itemsError) throw itemsError;
 
-      // Create inventory transactions for each item
-      for (const item of data.items) {
-        await supabase.from('inventory_transactions').insert({
-          code: `OUT-${order.code}-${item.product_id.slice(0, 8)}`,
-          type: 'out',
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          order_id: order.id,
-          created_by: user?.id,
-          notes: `Xuất kho cho đơn hàng ${order.code}`,
-        });
-
-        // Update product quantity
+      for (const item of orderData.items) {
         const { data: product } = await supabase
           .from('products')
           .select('quantity')
           .eq('id', item.product_id)
           .single();
-
+        
         if (product) {
           await supabase
             .from('products')
@@ -196,180 +121,243 @@ export default function Orders() {
             .eq('id', item.product_id);
         }
       }
+
+      const transactions = orderData.items.map((item: CartItem) => ({
+        code: `XT${Date.now()}_${item.product_id.slice(0, 8)}`,
+        type: 'out',
+        product_id: item.product_id,
+        order_id: order.id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      }));
+
+      await supabase.from('inventory_transactions').insert(transactions);
+
+      return order;
     },
-    onSuccess: () => {
+    onSuccess: (order) => {
+      toast({
+        title: 'Đơn hàng đã được tạo',
+        description: `Mã đơn: ${order.code}`,
+      });
+      setCurrentOrder(order);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['products-for-orders'] });
-      toast({ title: 'Tạo đơn hàng thành công' });
-      setIsDialogOpen(false);
-      resetForm();
     },
-    onError: () => {
-      toast({ title: 'Lỗi khi tạo đơn hàng', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({
+        title: 'Lỗi',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status })
-        .eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast({ title: 'Cập nhật trạng thái thành công' });
-    },
-    onError: () => {
-      toast({ title: 'Lỗi khi cập nhật trạng thái', variant: 'destructive' });
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      code: '',
-      customer_id: '',
-      payment_method: 'cash',
-      discount: 0,
-      notes: '',
-      items: [],
-    });
-    setSelectedProduct('');
-    setProductQuantity(1);
-  };
-
-  const addProductToOrder = () => {
-    if (!selectedProduct) return;
+  const addToCart = (product: Product) => {
+    const existingItem = cart.find((item) => item.product_id === product.id);
     
-    const product = products?.find(p => p.id === selectedProduct);
-    if (!product) return;
-
-    if (productQuantity > product.quantity) {
-      toast({ title: 'Số lượng vượt quá tồn kho', variant: 'destructive' });
-      return;
-    }
-
-    const existingItem = formData.items.find(item => item.product_id === selectedProduct);
     if (existingItem) {
-      setFormData({
-        ...formData,
-        items: formData.items.map(item =>
-          item.product_id === selectedProduct
-            ? { ...item, quantity: item.quantity + productQuantity }
+      if (existingItem.quantity >= product.quantity) {
+        toast({
+          title: 'Không đủ hàng',
+          description: 'Số lượng trong kho không đủ',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setCart(
+        cart.map((item) =>
+          item.product_id === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                total_price: (item.quantity + 1) * item.unit_price,
+              }
             : item
-        ),
-      });
+        )
+      );
     } else {
-      setFormData({
-        ...formData,
-        items: [
-          ...formData.items,
-          {
-            product_id: product.id,
-            product_name: product.name,
-            quantity: productQuantity,
-            unit_price: product.selling_price,
-          },
-        ],
-      });
+      setCart([
+        ...cart,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          unit_price: product.selling_price,
+          quantity: 1,
+          total_price: product.selling_price,
+        },
+      ]);
     }
-
-    setSelectedProduct('');
-    setProductQuantity(1);
+    setSearchTerm('');
   };
 
-  const removeProductFromOrder = (productId: string) => {
-    setFormData({
-      ...formData,
-      items: formData.items.filter(item => item.product_id !== productId),
-    });
+  const updateQuantity = (product_id: string, delta: number) => {
+    setCart(
+      cart
+        .map((item) => {
+          if (item.product_id === product_id) {
+            const newQuantity = item.quantity + delta;
+            if (newQuantity <= 0) return null;
+            return {
+              ...item,
+              quantity: newQuantity,
+              total_price: newQuantity * item.unit_price,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[]
+    );
   };
 
-  const totalAmount = formData.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const finalAmount = totalAmount - formData.discount;
+  const removeFromCart = (product_id: string) => {
+    setCart(cart.filter((item) => item.product_id !== product_id));
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.items.length === 0) {
-      toast({ title: 'Vui lòng thêm sản phẩm vào đơn hàng', variant: 'destructive' });
+  const totalAmount = cart.reduce((sum, item) => sum + item.total_price, 0);
+  const finalAmount = totalAmount - discount;
+
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      toast({
+        title: 'Giỏ hàng trống',
+        description: 'Vui lòng thêm sản phẩm vào giỏ hàng',
+        variant: 'destructive',
+      });
       return;
     }
-    createOrderMutation.mutate(formData);
-  };
 
-  const viewOrderDetails = async (orderId: string) => {
-    const { data: order } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
+    createOrderMutation.mutate({
+      customer_id: selectedCustomer || null,
+      items: cart,
+      total_amount: totalAmount,
+      discount: discount,
+      final_amount: finalAmount,
+      payment_method: paymentMethod,
+    });
 
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', orderId);
-
-    if (order && items) {
-      setViewingOrder({ order, items });
-    }
+    setCart([]);
+    setDiscount(0);
+    setSelectedCustomer('');
   };
 
   const handlePrint = useReactToPrint({
-    contentRef: printRef,
+    contentRef: invoiceRef,
   });
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      pending: 'secondary',
-      processing: 'default',
-      completed: 'outline',
-      cancelled: 'destructive',
-    };
-    
-    const labels: Record<string, string> = {
-      pending: 'Chờ xử lý',
-      processing: 'Đang xử lý',
-      completed: 'Hoàn thành',
-      cancelled: 'Đã hủy',
-    };
-
-    return <Badge variant={variants[status] || 'default'}>{labels[status] || status}</Badge>;
-  };
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-foreground">Quản lý đơn hàng</h1>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Tạo đơn hàng
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Tạo đơn hàng mới</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="code">Mã đơn hàng</Label>
-                    <Input
-                      id="code"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      required
-                    />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Bán hàng (POS)</h1>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Tìm kiếm sản phẩm</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm theo tên hoặc mã sản phẩm (hỗ trợ quét mã)..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                {searchTerm && products && products.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                    {products.map((product) => (
+                      <div
+                        key={product.id}
+                        onClick={() => addToCart(product)}
+                        className="p-3 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold">{product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Mã: {product.code}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Tồn: {product.quantity}
+                            </p>
+                          </div>
+                          <p className="font-bold text-primary">
+                            {product.selling_price.toLocaleString('vi-VN')}đ
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Giỏ hàng ({cart.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {cart.map((item) => (
+                    <div
+                      key={item.product_id}
+                      className="p-2 border rounded-lg space-y-2"
+                    >
+                      <div className="flex justify-between items-start">
+                        <p className="font-medium text-sm">{item.product_name}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeFromCart(item.product_id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product_id, -1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center">{item.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product_id, 1)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="font-bold text-sm">
+                          {item.total_price.toLocaleString('vi-VN')}đ
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3 pt-3 border-t">
                   <div>
-                    <Label htmlFor="customer">Khách hàng</Label>
-                    <Select value={formData.customer_id} onValueChange={(value) => setFormData({ ...formData, customer_id: value })}>
+                    <label className="text-sm font-medium mb-1 block">
+                      Khách hàng (tùy chọn)
+                    </label>
+                    <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn khách hàng" />
                       </SelectTrigger>
@@ -382,9 +370,12 @@ export default function Orders() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
-                    <Label htmlFor="payment_method">Phương thức thanh toán</Label>
-                    <Select value={formData.payment_method} onValueChange={(value) => setFormData({ ...formData, payment_method: value })}>
+                    <label className="text-sm font-medium mb-1 block">
+                      Phương thức thanh toán
+                    </label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -395,295 +386,132 @@ export default function Orders() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
-                    <Label htmlFor="discount">Giảm giá</Label>
-                    <Input
-                      id="discount"
-                      type="number"
-                      value={formData.discount}
-                      onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Thêm sản phẩm</Label>
-                  <div className="flex gap-2">
-                    <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Chọn sản phẩm" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products?.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.name} - {product.selling_price.toLocaleString()}đ (Kho: {product.quantity})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <label className="text-sm font-medium mb-1 block">
+                      Giảm giá (đ)
+                    </label>
                     <Input
                       type="number"
-                      min="1"
-                      value={productQuantity}
-                      onChange={(e) => setProductQuantity(parseInt(e.target.value) || 1)}
-                      className="w-24"
-                      placeholder="SL"
+                      value={discount}
+                      onChange={(e) => setDiscount(Number(e.target.value))}
+                      min="0"
+                      max={totalAmount}
                     />
-                    <Button type="button" onClick={addProductToOrder}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
                   </div>
-                </div>
 
-                {formData.items.length > 0 && (
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Sản phẩm</TableHead>
-                          <TableHead>Số lượng</TableHead>
-                          <TableHead>Đơn giá</TableHead>
-                          <TableHead>Thành tiền</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {formData.items.map((item) => (
-                          <TableRow key={item.product_id}>
-                            <TableCell>{item.product_name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{item.unit_price.toLocaleString()}đ</TableCell>
-                            <TableCell>{(item.quantity * item.unit_price).toLocaleString()}đ</TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeProductFromOrder(item.product_id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="p-4 border-t space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Tổng tiền:</span>
-                        <span className="font-medium">{totalAmount.toLocaleString()}đ</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Giảm giá:</span>
-                        <span className="font-medium">-{formData.discount.toLocaleString()}đ</span>
-                      </div>
-                      <div className="flex justify-between text-lg font-bold">
-                        <span>Thành tiền:</span>
-                        <span className="text-primary">{finalAmount.toLocaleString()}đ</span>
-                      </div>
+                  <div className="space-y-1 pt-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Tổng tiền:</span>
+                      <span>{totalAmount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Giảm giá:</span>
+                      <span>-{discount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                      <span>Thành tiền:</span>
+                      <span className="text-primary">
+                        {finalAmount.toLocaleString('vi-VN')}đ
+                      </span>
                     </div>
                   </div>
-                )}
 
-                <div>
-                  <Label htmlFor="notes">Ghi chú</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={3}
-                  />
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleCheckout}
+                    disabled={cart.length === 0 || createOrderMutation.isPending}
+                  >
+                    {createOrderMutation.isPending ? 'Đang xử lý...' : 'Thanh toán'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {currentOrder && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="max-w-2xl w-full m-4">
+              <CardHeader>
+                <CardTitle>Hóa đơn đã tạo thành công!</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div ref={invoiceRef} className="p-8 bg-white">
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold">CỬA HÀNG GỖ HOÀNG GIA</h2>
+                    <p className="text-sm">HÓA ĐƠN BÁN HÀNG</p>
+                    <p className="text-sm">Mã đơn: {currentOrder.code}</p>
+                    <p className="text-sm">
+                      Ngày: {new Date(currentOrder.created_at).toLocaleString('vi-VN')}
+                    </p>
+                  </div>
+
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Sản phẩm</TableHead>
+                        <TableHead className="text-right">SL</TableHead>
+                        <TableHead className="text-right">Đơn giá</TableHead>
+                        <TableHead className="text-right">Thành tiền</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cart.map((item) => (
+                        <TableRow key={item.product_id}>
+                          <TableCell>{item.product_name}</TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right">
+                            {item.unit_price.toLocaleString('vi-VN')}đ
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.total_price.toLocaleString('vi-VN')}đ
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  <div className="mt-6 space-y-2 text-right">
+                    <p>Tổng tiền: {currentOrder.total_amount.toLocaleString('vi-VN')}đ</p>
+                    <p>Giảm giá: {currentOrder.discount.toLocaleString('vi-VN')}đ</p>
+                    <p className="text-xl font-bold">
+                      Thành tiền: {currentOrder.final_amount.toLocaleString('vi-VN')}đ
+                    </p>
+                    <p className="text-sm">
+                      Thanh toán:{' '}
+                      {paymentMethod === 'cash'
+                        ? 'Tiền mặt'
+                        : paymentMethod === 'bank_transfer'
+                        ? 'Chuyển khoản'
+                        : 'Thẻ'}
+                    </p>
+                  </div>
+
+                  <div className="mt-8 text-center text-sm">
+                    <p>Cảm ơn quý khách!</p>
+                  </div>
                 </div>
 
-                <Button type="submit" className="w-full">Tạo đơn hàng</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant={selectedStatus === 'all' ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus('all')}
-          >
-            Tất cả
-          </Button>
-          <Button
-            variant={selectedStatus === 'pending' ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus('pending')}
-          >
-            Chờ xử lý
-          </Button>
-          <Button
-            variant={selectedStatus === 'processing' ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus('processing')}
-          >
-            Đang xử lý
-          </Button>
-          <Button
-            variant={selectedStatus === 'completed' ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus('completed')}
-          >
-            Hoàn thành
-          </Button>
-          <Button
-            variant={selectedStatus === 'cancelled' ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus('cancelled')}
-          >
-            Đã hủy
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          </div>
-        ) : (
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mã đơn</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Tổng tiền</TableHead>
-                  <TableHead>Giảm giá</TableHead>
-                  <TableHead>Thành tiền</TableHead>
-                  <TableHead>Thanh toán</TableHead>
-                  <TableHead>Ngày tạo</TableHead>
-                  <TableHead>Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders?.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.code}</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{order.total_amount.toLocaleString()}đ</TableCell>
-                    <TableCell>{order.discount.toLocaleString()}đ</TableCell>
-                    <TableCell className="font-bold">{order.final_amount.toLocaleString()}đ</TableCell>
-                    <TableCell>{order.payment_method}</TableCell>
-                    <TableCell>{new Date(order.created_at).toLocaleDateString('vi-VN')}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => viewOrderDetails(order.id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {canManage && order.status !== 'completed' && (
-                          <Select
-                            value={order.status}
-                            onValueChange={(value) => updateStatusMutation.mutate({ id: order.id, status: value })}
-                          >
-                            <SelectTrigger className="w-32 h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Chờ xử lý</SelectItem>
-                              <SelectItem value="processing">Đang xử lý</SelectItem>
-                              <SelectItem value="completed">Hoàn thành</SelectItem>
-                              <SelectItem value="cancelled">Đã hủy</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                <div className="flex gap-2">
+                  <Button onClick={handlePrint} className="flex-1">
+                    <Printer className="mr-2 h-4 w-4" />
+                    In hóa đơn
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentOrder(null)}
+                    className="flex-1"
+                  >
+                    Đóng
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
-
-      {/* Order Details Dialog */}
-      <Dialog open={!!viewingOrder} onOpenChange={(open) => !open && setViewingOrder(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex justify-between items-center">
-              <span>Chi tiết đơn hàng {viewingOrder?.order.code}</span>
-              <Button onClick={handlePrint} variant="outline" size="sm">
-                <Printer className="mr-2 h-4 w-4" />
-                In hóa đơn
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div ref={printRef} className="p-6 space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">HÓA ĐƠN BÁN HÀNG</h2>
-              <p className="text-sm text-muted-foreground">Mã đơn: {viewingOrder?.order.code}</p>
-              <p className="text-sm text-muted-foreground">
-                Ngày: {viewingOrder?.order.created_at && new Date(viewingOrder.order.created_at).toLocaleDateString('vi-VN')}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-semibold">Trạng thái:</p>
-                <p>{viewingOrder?.order.status}</p>
-              </div>
-              <div>
-                <p className="font-semibold">Phương thức thanh toán:</p>
-                <p>{viewingOrder?.order.payment_method}</p>
-              </div>
-            </div>
-
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>STT</TableHead>
-                    <TableHead>Sản phẩm</TableHead>
-                    <TableHead>Số lượng</TableHead>
-                    <TableHead>Đơn giá</TableHead>
-                    <TableHead>Thành tiền</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {viewingOrder?.items.map((item, index) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{item.product_name}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{item.unit_price.toLocaleString()}đ</TableCell>
-                      <TableCell>{item.total_price.toLocaleString()}đ</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="border-t pt-4 space-y-2">
-              <div className="flex justify-between">
-                <span>Tổng tiền:</span>
-                <span className="font-medium">{viewingOrder?.order.total_amount.toLocaleString()}đ</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Giảm giá:</span>
-                <span className="font-medium">-{viewingOrder?.order.discount.toLocaleString()}đ</span>
-              </div>
-              <div className="flex justify-between text-xl font-bold">
-                <span>Thành tiền:</span>
-                <span className="text-primary">{viewingOrder?.order.final_amount.toLocaleString()}đ</span>
-              </div>
-            </div>
-
-            {viewingOrder?.order.notes && (
-              <div>
-                <p className="font-semibold mb-1">Ghi chú:</p>
-                <p className="text-sm text-muted-foreground">{viewingOrder.order.notes}</p>
-              </div>
-            )}
-
-            <div className="text-center text-sm text-muted-foreground pt-6 print:block hidden">
-              <p>Cảm ơn quý khách đã mua hàng!</p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
