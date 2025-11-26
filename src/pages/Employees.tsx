@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { exportEmployeesToExcel } from '@/utils/excelExport';
 
 type Employee = {
   id: string;
@@ -159,7 +160,17 @@ export default function Employees() {
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-foreground">Quản lý nhân viên</h1>
-          {canManage && (
+          <div className="flex gap-2">
+            {employees && employees.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => exportEmployeesToExcel(employees)}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Xuất Excel
+              </Button>
+            )}
+            {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={(open) => {
               setIsDialogOpen(open);
               if (!open) resetForm();
@@ -282,7 +293,8 @@ export default function Employees() {
                 </form>
               </DialogContent>
             </Dialog>
-          )}
+            )}
+          </div>
         </div>
 
         {isLoading ? (
