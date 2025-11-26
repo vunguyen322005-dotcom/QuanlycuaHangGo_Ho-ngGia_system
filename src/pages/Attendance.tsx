@@ -31,8 +31,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Clock, LogIn, LogOut, Calendar, DollarSign, TrendingUp } from "lucide-react";
+import { Clock, LogIn, LogOut, Calendar, DollarSign, TrendingUp, FileDown } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { exportAttendanceToExcel, exportPayrollToExcel } from "@/utils/excelExport";
 
 interface AttendanceRecord {
   id: string;
@@ -206,6 +207,79 @@ const Attendance = () => {
   const getEmployeeName = (employeeId: string) => {
     const employee = employees?.find((e) => e.id === employeeId);
     return employee ? `${employee.code} - ${employee.full_name}` : "N/A";
+  };
+
+  const handleExportAttendance = () => {
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      toast({
+        title: "Không có dữ liệu",
+        description: "Không có dữ liệu chấm công để xuất",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = attendanceRecords.map(record => {
+      const employee = employees?.find(e => e.id === record.employee_id);
+      return {
+        employee_code: employee?.code || '',
+        employee_name: employee?.full_name || '',
+        date: record.date,
+        time_in: record.time_in,
+        time_out: record.time_out,
+        total_hours: record.total_hours,
+        notes: record.notes,
+      };
+    });
+
+    exportAttendanceToExcel(exportData, startDate, endDate);
+    toast({
+      title: "Thành công",
+      description: "Đã xuất báo cáo chấm công",
+    });
+  };
+
+  const handleExportPayroll = () => {
+    if (!employees || employees.length === 0) {
+      toast({
+        title: "Không có dữ liệu",
+        description: "Không có dữ liệu nhân viên",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Calculate payroll for each employee
+    const payrollData = employees.map(employee => {
+      const employeeRecords = attendanceRecords?.filter(
+        r => r.employee_id === employee.id
+      ) || [];
+      
+      const totalDays = employeeRecords.length;
+      const totalHours = employeeRecords.reduce(
+        (sum, record) => sum + (record.total_hours || 0), 
+        0
+      );
+      const dailySalary = employee.base_salary / 26;
+      const calculatedSalary = dailySalary * totalDays;
+
+      return {
+        employee_code: employee.code,
+        employee_name: employee.full_name,
+        position: employee.position,
+        base_salary: employee.base_salary,
+        total_days: totalDays,
+        total_hours: totalHours,
+        calculated_salary: calculatedSalary,
+      };
+    });
+
+    const monthLabel = format(new Date(startDate), 'MM-yyyy');
+    exportPayrollToExcel(payrollData, monthLabel);
+    toast({
+      title: "Thành công",
+      description: "Đã xuất báo cáo bảng lương",
+    });
   };
 
   return (
@@ -425,7 +499,29 @@ const Attendance = () => {
         {/* Attendance History */}
         <Card>
           <CardHeader>
-            <CardTitle>Lịch sử chấm công</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>Lịch sử chấm công</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportAttendance}
+                  disabled={!attendanceRecords || attendanceRecords.length === 0}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Xuất chấm công
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportPayroll}
+                  disabled={!employees || employees.length === 0}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Xuất bảng lương
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
