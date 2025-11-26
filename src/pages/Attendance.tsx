@@ -56,7 +56,7 @@ interface Employee {
 const Attendance = () => {
   const { user, hasRole } = useAuth();
   const queryClient = useQueryClient();
-  const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [notes, setNotes] = useState("");
@@ -87,7 +87,7 @@ const Attendance = () => {
         .lte("date", endDate)
         .order("date", { ascending: false });
 
-      if (selectedEmployee) {
+      if (selectedEmployee && selectedEmployee !== "all") {
         query = query.eq("employee_id", selectedEmployee);
       }
 
@@ -105,7 +105,7 @@ const Attendance = () => {
   // Check in mutation
   const checkIn = useMutation({
     mutationFn: async () => {
-      if (!selectedEmployee) throw new Error("Please select an employee");
+      if (!selectedEmployee || selectedEmployee === "all") throw new Error("Please select an employee");
 
       const today = format(new Date(), "yyyy-MM-dd");
       const now = format(new Date(), "HH:mm:ss");
@@ -246,7 +246,7 @@ const Attendance = () => {
                 </Select>
               </div>
 
-              {selectedEmployee && (
+              {selectedEmployee && selectedEmployee !== "all" && (
                 <>
                   <div className="space-y-2">
                     <Label>Ghi chú</Label>
@@ -336,7 +336,7 @@ const Attendance = () => {
         </div>
 
         {/* Statistics */}
-        {selectedEmployee && (
+        {selectedEmployee && selectedEmployee !== "all" && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -395,7 +395,7 @@ const Attendance = () => {
                 <SelectValue placeholder="Tất cả nhân viên" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tất cả nhân viên</SelectItem>
+                <SelectItem value="all">Tất cả nhân viên</SelectItem>
                 {employees?.map((employee) => (
                   <SelectItem key={employee.id} value={employee.id}>
                     {employee.code} - {employee.full_name}
