@@ -44,7 +44,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { icon: Truck, label: "Nhà cung cấp", path: "/suppliers", roles: ['owner', 'manager'] },
     { icon: UserCog, label: "Nhân viên", path: "/employees", roles: ['owner', 'manager'] },
     { icon: Users, label: "Khách hàng", path: "/customers", roles: ['owner', 'manager', 'staff'] },
-    { icon: ShoppingCart, label: "Bán hàng", path: "/sales", roles: ['owner', 'manager', 'staff'] },
     { icon: ClipboardList, label: "Đơn hàng", path: "/orders", roles: ['owner', 'manager', 'staff'] },
     { icon: BarChart3, label: "Báo cáo", path: "/reports", roles: ['owner', 'manager'] },
     { icon: Clock, label: "Chấm công", path: "/attendance", roles: ['owner', 'manager'] },

@@ -17,6 +17,7 @@ import InventoryTransactions from "./pages/InventoryTransactions";
 import Reports from "./pages/Reports";
 import Attendance from "./pages/Attendance";
 import ActivityLog from "./pages/ActivityLog";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -116,6 +117,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['owner', 'manager']}>
                   <ActivityLog />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />
