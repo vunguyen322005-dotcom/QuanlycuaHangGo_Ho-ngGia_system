@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import UserManagement from "./pages/UserManagement";
+import AdminPanel from "./pages/AdminPanel";
 import Products from "./pages/Products";
 import Suppliers from "./pages/Suppliers";
 import Employees from "./pages/Employees";
@@ -41,10 +41,10 @@ const App = () => (
               }
             />
             <Route
-              path="/users"
+              path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['owner']}>
-                  <UserManagement />
+                  <AdminPanel />
                 </ProtectedRoute>
               }
             />
