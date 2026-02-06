@@ -17,7 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Users, UserPlus, Trash2, Shield, UserCog, User } from "lucide-react";
+import { Users, UserPlus, Trash2, Shield, UserCog, User, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,6 +71,11 @@ export default function AdminUserManagement({ users, onRefresh }: Props) {
   const [formData, setFormData] = useState({
     email: '', password: '', fullName: '', role: 'staff' as AppRole,
   });
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState("");
+  const [resetUserEmail, setResetUserEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -119,6 +124,37 @@ export default function AdminUserManagement({ users, onRefresh }: Props) {
       onRefresh();
     } catch {
       toast({ title: "Lỗi", description: "Không thể cập nhật vai trò", variant: "destructive" });
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: "Lỗi", description: "Mật khẩu phải có ít nhất 6 ký tự", variant: "destructive" });
+      return;
+    }
+    setIsResetting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `https://tixbvquszwqfewhuknkw.supabase.co/functions/v1/admin-reset-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ userId: resetUserId, newPassword }),
+        }
+      );
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      toast({ title: "Thành công", description: `Đã đặt lại mật khẩu cho ${resetUserEmail}` });
+      setResetPasswordOpen(false);
+      setNewPassword("");
+    } catch (error: any) {
+      toast({ title: "Lỗi", description: error.message || "Không thể đặt lại mật khẩu", variant: "destructive" });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -255,6 +291,19 @@ export default function AdminUserManagement({ users, onRefresh }: Props) {
                               <SelectItem value="staff">Nhân viên</SelectItem>
                             </SelectContent>
                           </Select>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setResetUserId(u.id);
+                              setResetUserEmail(u.email);
+                              setNewPassword("");
+                              setResetPasswordOpen(true);
+                            }}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={u.id === user?.id}>
@@ -286,6 +335,33 @@ export default function AdminUserManagement({ users, onRefresh }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đặt lại mật khẩu</DialogTitle>
+            <DialogDescription>Đặt mật khẩu mới cho {resetUserEmail}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Mật khẩu mới</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Tối thiểu 6 ký tự"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPasswordOpen(false)}>Hủy</Button>
+            <Button onClick={handleResetPassword} disabled={isResetting}>
+              {isResetting ? "Đang xử lý..." : "Đặt lại mật khẩu"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Role Permissions Guide */}
       <Card>
